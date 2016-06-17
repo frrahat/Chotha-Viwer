@@ -28,7 +28,7 @@ public class HelpDialog extends JDialog {
 	 * Create the dialog.
 	 */
 	public HelpDialog() {
-		setIconImage(Toolkit.getDefaultToolkit().getImage(HelpDialog.class.getResource("/imageViewer/chothaViewer.png")));
+		setIconImage(Toolkit.getDefaultToolkit().getImage(HelpDialog.class.getResource("/chothaViewer/chothaViewer.png")));
 		setBounds(100, 100, 450, 300);
 		getContentPane().setLayout(new BorderLayout());
 		contentPanel.setBackground(Color.DARK_GRAY);
@@ -48,7 +48,12 @@ public class HelpDialog extends JDialog {
 				txtrKeys.setText("Keys:\r\nPage Up-->Previous Image File\r"
 						+ "\nPage Down-->Next Image File\r\n\r"
 						+ "\nMouse Left Click or key [=]-->Zoom In\r"
-						+ "\nMouse Right Click or key [-]-->Zoom Out");
+						+ "\nMouse Right Click or key [-]-->Zoom Out"
+						+ "\n"
+						+ "\n"
+						+ "\n"
+						+ "\nFor bug fixing contact : fr.rahat@gmail.com");
+				txtrKeys.setCaretPosition(0);
 				scrollPane.setViewportView(txtrKeys);
 			}
 		}

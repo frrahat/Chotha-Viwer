@@ -22,14 +22,11 @@ import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.FontFormatException;
-import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.Insets;
-import java.awt.Rectangle;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Locale;
 
 import javax.swing.JLabel;
@@ -47,15 +44,21 @@ public class ViewerFrame extends JFrame {
 	private JPanel contentPane;
 	private JFileChooser fileChooser;
 	private static ViewerPanel viewerPanel;
-	
-	private static File[] listFiles;
+
 	private JButton button;
 	private JButton btnNext;
-	protected static int fileIndex=-1;
+
 	private static JLabel lblFileName;
 	private JButton btnHelp;
+	
+	private static int currentImageFileIndex;
+	private static int currentImgInBufferIndex;
+	private static final int CHOTHA_IMAGE_BUFFER_SIZE=10;//>1
+	private static ChothaImage[] chothaImages;
+	private static ArrayList<File> chothaImageFiles;
+	
 
-	private final String[] supportedFileExts={"jpg","png","bmp","gif","jpeg"};
+	private final static String[] supportedFileExts={"jpg","png","bmp","gif","jpeg"};
 	/**
 	 * Launch the application.
 	 */
@@ -66,9 +69,11 @@ public class ViewerFrame extends JFrame {
 					ViewerFrame frame = new ViewerFrame();
 					frame.pack();
 					frame.setVisible(true);
-					if(args.length>0)
-						setFile(new File(args[0]));
-						//setFile(new File("C:/Users/Rahat/Desktop/routine.png"));
+					if(args.length>0){
+						File file=new File(args[0]);
+						initChothaBuffer(file);
+						updateChothaImage();
+					}
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -80,7 +85,7 @@ public class ViewerFrame extends JFrame {
 	 * Create the frame.
 	 */
 	public ViewerFrame() {
-		setIconImage(Toolkit.getDefaultToolkit().getImage(ViewerFrame.class.getResource("/imageViewer/chothaViewer.png")));
+		setIconImage(Toolkit.getDefaultToolkit().getImage(ViewerFrame.class.getResource("/chothaViewer/chothaViewer.png")));
 		setTitle("Chotha Viewer");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, 450, 300);
@@ -187,7 +192,8 @@ public class ViewerFrame extends JFrame {
 				if(returnVal == JFileChooser.APPROVE_OPTION) 
 				{
 			       File file=fileChooser.getSelectedFile();
-			       setFile(file);
+			       initChothaBuffer(file);
+			       updateChothaImage();
 				}
 				
 			}
@@ -202,53 +208,152 @@ public class ViewerFrame extends JFrame {
 		FileNameExtensionFilter filter = new FileNameExtensionFilter(
 		        "Image Files", supportedFileExts);
 		fileChooser.setFileFilter(filter);
+		
+		chothaImages=new ChothaImage[CHOTHA_IMAGE_BUFFER_SIZE];
+		chothaImageFiles=new ArrayList<File>();
  
 	}
 	
 
-	private static void setFile(File file) {
-		lblFileName.setText(file.getName());
-		viewerPanel.setFile(file);
-		listFiles = file.getParentFile().listFiles();
-		fileIndex = getFileIndex(file);
+	private static void updateChothaImage(){
+		ChothaImage chothaImage=chothaImages[currentImgInBufferIndex];
+		if(chothaImage==null){
+			lblFileName.setText("null chotha image");
+		}else{
+			lblFileName.setText(chothaImage.getFileName());
+			viewerPanel.setImage(chothaImage.getImage());
+		}
+	}
+	
+	private static void initChothaBuffer(File currentFile){
+		File listFiles[]=currentFile.getParentFile().listFiles();
+		
+		chothaImageFiles.clear();
+		
+		for(int i=0;i<listFiles.length;i++){
+			File f=listFiles[i];
+			if(isSupported(f.getName())){
+				chothaImageFiles.add(f);
+			}
+		}
+		
+		Comparator<File> fileComparator=new Comparator<File>() {
+
+			@Override
+			public int compare(File o1, File o2) {
+				return o1.getName().toLowerCase().compareTo(o2.getName().toLowerCase());
+			}
+		};
+		
+		chothaImageFiles.sort(fileComparator);
+		
+		currentImageFileIndex=chothaImageFiles.indexOf(currentFile);
+		
+		
+		int middleIndex=getBufferMiddleIndex();
+		
+		int size=chothaImageFiles.size();
+		for(int i=0;i<CHOTHA_IMAGE_BUFFER_SIZE;i++){
+			int fileIndex=currentImageFileIndex-middleIndex+i;
+			if(fileIndex<0 || fileIndex>=size)
+				continue;
+			chothaImages[i]=ChothaImage.getFromFile(
+					chothaImageFiles.get(fileIndex), fileIndex);
+		}
+		
+		currentImgInBufferIndex=middleIndex;
+		//printBuffer();
+	}
+	
+	private void refreshChothaBuffer(){
+		int middleIndex=getBufferMiddleIndex();
+		
+		int size=chothaImageFiles.size();
+		for(int i=0;i<CHOTHA_IMAGE_BUFFER_SIZE;i++){
+			int fileIndex=currentImageFileIndex-middleIndex+i;
+			if(fileIndex<0 || fileIndex>=size)
+				continue;
+			chothaImages[i]=ChothaImage.getFromFile(
+					chothaImageFiles.get(fileIndex), fileIndex);
+		}
+	}
+	
+	private static int getBufferMiddleIndex(){
+		return (CHOTHA_IMAGE_BUFFER_SIZE-1)/2;
 	}
 
-	private void setPrevFile() {
-		if(listFiles!=null)
-		{
-			setPrevFileIndex();
-			//System.out.println(fileIndex);
-			//if(fileIndex<0)
-				//return;
-			
-			File file=listFiles[fileIndex];
-			lblFileName.setText(file.getName());
-			viewerPanel.setFile(file);
+	private static void printBuffer(){
+		System.out.println("Printing Buffer:");
+		for(int i=0;i<CHOTHA_IMAGE_BUFFER_SIZE;i++){
+			String indicator=Integer.toString(i);
+			if(currentImgInBufferIndex==i){
+				indicator+="*";
+			}
+			System.out.println(indicator+"-->"+chothaImages[i]);
 		}
+	}
+	private void setPrevFile() {
+		if(currentImageFileIndex<0)
+			return;
+			
+		currentImageFileIndex--;
+		currentImgInBufferIndex+=CHOTHA_IMAGE_BUFFER_SIZE-1;
+		currentImgInBufferIndex%=CHOTHA_IMAGE_BUFFER_SIZE;
+		
+		updateChothaImage();
+		
+		Thread t=new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				int midIndex=getBufferMiddleIndex();
+				int fileIndexToLoad=currentImageFileIndex-midIndex-1;
+				if(fileIndexToLoad<0)
+					return;
+				
+				chothaImages[(CHOTHA_IMAGE_BUFFER_SIZE+
+						currentImgInBufferIndex-midIndex)%CHOTHA_IMAGE_BUFFER_SIZE]
+						=ChothaImage.getFromFile(chothaImageFiles.get(fileIndexToLoad),
+								fileIndexToLoad);
+			}
+		});
+		
+		t.run();
+		
+		//printBuffer();
 	}
 
 	private void setNextFile() {
+		if(currentImageFileIndex>=chothaImageFiles.size())
+			return;
 		
-		if(listFiles!=null)
-		{
-			setNextFileIndex();
-			//System.out.println(fileIndex);
-			//if(fileIndex>=listFiles.length)
-				//return;
-			File file=listFiles[fileIndex];
-			lblFileName.setText(file.getName());
-			viewerPanel.setFile(file);
-		}
+		currentImageFileIndex++;
+		currentImgInBufferIndex++;
+		currentImgInBufferIndex%=CHOTHA_IMAGE_BUFFER_SIZE;
+		
+		updateChothaImage();
+		
+		Thread t=new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				int midIndex=getBufferMiddleIndex();
+				int fileIndexToLoad=currentImageFileIndex+(CHOTHA_IMAGE_BUFFER_SIZE-midIndex+1);
+				if(fileIndexToLoad>=chothaImageFiles.size())
+					return;
+				
+				chothaImages[(CHOTHA_IMAGE_BUFFER_SIZE+
+						currentImgInBufferIndex-midIndex-1)%CHOTHA_IMAGE_BUFFER_SIZE]
+						=ChothaImage.getFromFile(chothaImageFiles.get(fileIndexToLoad),
+								fileIndexToLoad);
+			}
+		});
+		
+		t.run();
+		
+		//printBuffer();
 	}
 
-	private static int getFileIndex(File selectedFile) {
-		for(int i=0;i<listFiles.length;i++)
-		{
-			if(listFiles[i].equals(selectedFile))
-				return i;
-		}
-		return -1;
-	}
 
 	private static void setDesign(String newLookAndFeel)
 	{
@@ -272,36 +377,9 @@ public class ViewerFrame extends JFrame {
 			}// do nothing
 		}
 	}
-    
-	private void setPrevFileIndex()
-	{
-		int p=fileIndex;
-		fileIndex--;//current file index decreased
-		while(fileIndex>=0)
-		{
-			String name=listFiles[fileIndex].getName();
-			if(isSupported(name))
-				return;
-			fileIndex--;
-		}
-		fileIndex=p;//current file Index or 0
-	}
+ 
 	
-	private void setNextFileIndex()
-	{
-		int p=fileIndex;
-		fileIndex++;//current file Index increased
-		while(fileIndex<listFiles.length)
-		{
-			String name=listFiles[fileIndex].getName();
-			if(isSupported(name))
-				return;
-			fileIndex++;
-		}
-		fileIndex=p;//current fileIndex
-	}
-	
-	private boolean isSupported(String name)
+	private static boolean isSupported(String name)
 	{
 		name=name.toLowerCase(Locale.ENGLISH);
 		for(int i=0;i<supportedFileExts.length;i++)

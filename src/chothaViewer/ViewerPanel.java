@@ -290,9 +290,10 @@ public class ViewerPanel extends JPanel {
 
 	}
 
-	public void setFile(File selectedFile) {
+	public void setImage(Image image) {
 		
-		setScaledImage(selectedFile);
+		background=image;
+		scaledImage=image;
 		setZoom(zoom);
 		setInitImagePosition();
 		repaint();
@@ -311,29 +312,6 @@ public class ViewerPanel extends JPanel {
 		{
 			scrollY=0;
 		}
-	}
-
-	private void setScaledImage(final File file)
-	{
-		Thread t=new Thread(new Runnable() {
-			
-			@Override
-			public void run() {
-				try {
-					background = ImageIO.read(file);
-					scaledImage = background;
-
-				} catch (IOException ex) {
-					ex.printStackTrace();
-				}
-			}
-		});
-		
-		t.start();
-		try
-		{
-			t.join();
-		}catch(InterruptedException ie){ie.printStackTrace();}
 	}
 	
 	public void setInputKeyListener(InputKeyListener listener)
